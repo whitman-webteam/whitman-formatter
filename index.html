@@ -126,7 +126,6 @@
     </div>
 
     <script>
-        // Set to false if you end up hosting this on the same domain or setting up a true backend
         const USE_CORS_PROXY = true; 
 
         async function cleanText() {
@@ -138,7 +137,6 @@
             
             if (!inputBox.innerHTML.trim()) return;
 
-            // Update UI for loading state
             cleanBtn.disabled = true;
             copyBtn.style.display = 'none';
             statusText.innerText = "Processing formatting and fetching links...";
@@ -146,7 +144,7 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = inputBox.innerHTML;
             
-            // --- 1. Clean HTML Formatting (Same as before) ---
+            // --- 1. Clean HTML Formatting ---
             const docsWrappers = tempDiv.querySelectorAll('[id^="docs-internal-guid-"]');
             docsWrappers.forEach(wrapper => {
                 while (wrapper.firstChild) wrapper.parentNode.insertBefore(wrapper.firstChild, wrapper);
@@ -195,56 +193,50 @@
 
             links.forEach(a => {
                 try {
+                    // Reading the property 'a.href' is still correct because we need the absolute URL to evaluate it.
                     const url = new URL(a.href);
                     
-                    // Check if domain is exactly whitman.edu or www.whitman.edu (no other subdomains)
                     if (url.hostname === 'whitman.edu' || url.hostname === 'www.whitman.edu') {
                         
-                        // Strip any existing query parameters and hashes, then add ?tfrm=4
                         const cleanUrl = url.origin + url.pathname + '?tfrm=4';
                         
-                        // Decide whether to route through CORS proxy
                         const fetchUrl = USE_CORS_PROXY 
-                            ? 'https://corsproxy.io/?' + encodeURIComponent(cleanUrl) 
+                            ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(cleanUrl) 
                             : cleanUrl;
 
-                        // Create a promise for each fetch request so we can run them concurrently
                         const fetchPromise = fetch(fetchUrl)
                             .then(response => {
-                                if (!response.ok) throw new Error('Network response was not ok');
+                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                                 return response.text();
                             })
                             .then(xmlString => {
-                                // Parse the returned XML
                                 const parser = new DOMParser();
                                 const xmlDoc = parser.parseFromString(xmlString, "text/xml");
                                 
-                                // The documentElement is the root node (e.g., <SectionFront>)
                                 const rootElement = xmlDoc.documentElement;
                                 const xId = rootElement.getAttribute('ID');
                                 
                                 if (xId) {
-                                    a.href = `${xId}.xml`;
+                                    // Use setAttribute to force a relative string and prevent the browser from prepending the GitHub domain.
+                                    a.setAttribute('href', `${xId}.xml`);
+                                    a.removeAttribute('data-mce-href'); // Clean up TinyMCE artifact if present
                                 } else {
                                     console.warn("Could not find ID attribute in XML for:", cleanUrl);
                                 }
                             })
                             .catch(error => {
                                 console.error("Failed to fetch or parse XML for:", cleanUrl, error);
-                                // Leave the href alone if it fails
                             });
 
                         linkPromises.push(fetchPromise);
                     }
                 } catch (e) {
-                    // Invalid URL format, ignore and move on
+                    // Invalid URL format, ignore
                 }
             });
 
-            // Wait for all the network requests to finish
             await Promise.all(linkPromises);
 
-            // Output the final code and reset UI
             outputHTML.value = tempDiv.innerHTML.trim();
             statusText.innerText = "Done!";
             cleanBtn.disabled = false;
