@@ -125,7 +125,7 @@
         </div>
     </div>
 
-    <script>
+<script>
         const USE_CORS_PROXY = true; 
 
         async function cleanText() {
@@ -193,33 +193,45 @@
 
             links.forEach(a => {
                 try {
-                    // Reading the property 'a.href' is still correct because we need the absolute URL to evaluate it.
                     const url = new URL(a.href);
                     
                     if (url.hostname === 'whitman.edu' || url.hostname === 'www.whitman.edu') {
                         
                         const cleanUrl = url.origin + url.pathname + '?tfrm=4';
                         
+                        // Switch to the /get endpoint which wraps the response safely in JSON
                         const fetchUrl = USE_CORS_PROXY 
-                            ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(cleanUrl) 
+                            ? 'https://api.allorigins.win/get?url=' + encodeURIComponent(cleanUrl) 
                             : cleanUrl;
 
                         const fetchPromise = fetch(fetchUrl)
                             .then(response => {
                                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                return response.text();
+                                // If proxy is used, extract the 'contents' string from the JSON
+                                return USE_CORS_PROXY ? response.json().then(data => data.contents) : response.text();
                             })
                             .then(xmlString => {
+                                // Failsafe: Check if the returned text is actually a firewall block page
+                                if (xmlString.includes('<html') && (xmlString.includes('Cloudflare') || xmlString.includes('Access Denied'))) {
+                                    console.warn("Firewall blocked proxy request for:", cleanUrl);
+                                    return;
+                                }
+
                                 const parser = new DOMParser();
                                 const xmlDoc = parser.parseFromString(xmlString, "text/xml");
                                 
+                                // Failsafe: Check if the DOMParser threw an error (usually means the proxy returned non-XML text)
+                                if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                                    console.warn("Returned text was not valid XML for:", cleanUrl);
+                                    return;
+                                }
+
                                 const rootElement = xmlDoc.documentElement;
                                 const xId = rootElement.getAttribute('ID');
                                 
                                 if (xId) {
-                                    // Use setAttribute to force a relative string and prevent the browser from prepending the GitHub domain.
                                     a.setAttribute('href', `${xId}.xml`);
-                                    a.removeAttribute('data-mce-href'); // Clean up TinyMCE artifact if present
+                                    a.removeAttribute('data-mce-href');
                                 } else {
                                     console.warn("Could not find ID attribute in XML for:", cleanUrl);
                                 }
