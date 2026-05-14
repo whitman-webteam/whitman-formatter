@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TinyMCE Format Cleaner + Link Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            color: #333;
+            line-height: 1.5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .editor-box {
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            padding: 1rem;
+            min-height: 150px;
+            overflow-y: auto;
+            background: #fff;
+            transition: border-color 0.2s;
+        }
+        .editor-box:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        .editor-box:empty:before {
+            content: attr(data-placeholder);
+            color: #888;
+        }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        button {
+            background: #0066cc;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        button:hover {
+            background: #005bb5;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #copyBtn {
+            background: #28a745;
+            display: none;
+        }
+        #copyBtn:hover {
+            background: #218838;
+        }
+        .status {
+            font-size: 0.9rem;
+            color: #666;
+            font-style: italic;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+            background: #f9f9f9;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        .instructions {
+            background: #f0f7ff;
+            padding: 1rem;
+            border-left: 4px solid #0066cc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>CMS Format Cleaner & Link Converter</h1>
+    
+    <div class="instructions">
+        <p><strong>How to use:</strong> Paste your formatted text, click Clean. The app will strip bad formatting and automatically reach out to <code>whitman.edu</code> to convert standard links into internal CMS xIDs.</p>
+    </div>
+
+    <div class="container">
+        <div>
+            <label><strong>1. Paste Google Docs / Word Text Here:</strong></label>
+            <div id="inputBox" class="editor-box" contenteditable="true" data-placeholder="Paste your text here..."></div>
+        </div>
+
+        <div class="button-group">
+            <button onclick="cleanText()" id="cleanBtn">Clean & Convert Links</button>
+            <span id="statusText" class="status"></span>
+            <button onclick="copyRichText()" id="copyBtn">📋 Copy for TinyMCE</button>
+        </div>
+
+        <div>
+            <label><strong>2. Cleaned Source Code:</strong></label>
+            <textarea id="outputHTML" readonly placeholder="Your cleaned HTML will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // Set to false if you end up hosting this on the same domain or setting up a true backend
+        const USE_CORS_PROXY = true; 
+
+        async function cleanText() {
+            const inputBox = document.getElementById('inputBox');
+            const outputHTML = document.getElementById('outputHTML');
+            const copyBtn = document.getElementById('copyBtn');
+            const cleanBtn = document.getElementById('cleanBtn');
+            const statusText = document.getElementById('statusText');
+            
+            if (!inputBox.innerHTML.trim()) return;
+
+            // Update UI for loading state
+            cleanBtn.disabled = true;
+            copyBtn.style.display = 'none';
+            statusText.innerText = "Processing formatting and fetching links...";
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = inputBox.innerHTML;
+            
+            // --- 1. Clean HTML Formatting (Same as before) ---
+            const docsWrappers = tempDiv.querySelectorAll('[id^="docs-internal-guid-"]');
+            docsWrappers.forEach(wrapper => {
+                while (wrapper.firstChild) wrapper.parentNode.insertBefore(wrapper.firstChild, wrapper);
+                wrapper.parentNode.removeChild(wrapper);
+            });
+
+            const spans = tempDiv.querySelectorAll('span');
+            spans.forEach(span => {
+                const style = span.getAttribute('style') || '';
+                if (style.includes('font-weight: 700') || style.includes('font-weight: bold')) {
+                    const strong = document.createElement('strong');
+                    strong.innerHTML = span.innerHTML;
+                    span.innerHTML = '';
+                    span.appendChild(strong);
+                }
+                if (style.includes('font-style: italic')) {
+                    const em = document.createElement('em');
+                    em.innerHTML = span.innerHTML;
+                    span.innerHTML = '';
+                    span.appendChild(em);
+                }
+                while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
+                span.parentNode.removeChild(span);
+            });
+
+            const allElements = tempDiv.querySelectorAll('*');
+            allElements.forEach(el => {
+                el.removeAttribute('style');
+                el.removeAttribute('dir');
+                el.removeAttribute('class');
+            });
+
+            const brs = tempDiv.querySelectorAll('br');
+            brs.forEach(br => {
+                if (br.nextElementSibling && br.nextElementSibling.tagName === 'P') br.parentNode.removeChild(br);
+            });
+
+            const paragraphs = tempDiv.querySelectorAll('p, div');
+            paragraphs.forEach(p => {
+                if (p.textContent.trim() === '' && !p.querySelector('img')) p.parentNode.removeChild(p);
+            });
+
+            // --- 2. Process Links and Fetch xIDs ---
+            const links = tempDiv.querySelectorAll('a');
+            const linkPromises = [];
+
+            links.forEach(a => {
+                try {
+                    const url = new URL(a.href);
+                    
+                    // Check if domain is exactly whitman.edu or www.whitman.edu (no other subdomains)
+                    if (url.hostname === 'whitman.edu' || url.hostname === 'www.whitman.edu') {
+                        
+                        // Strip any existing query parameters and hashes, then add ?tfrm=4
+                        const cleanUrl = url.origin + url.pathname + '?tfrm=4';
+                        
+                        // Decide whether to route through CORS proxy
+                        const fetchUrl = USE_CORS_PROXY 
+                            ? 'https://corsproxy.io/?' + encodeURIComponent(cleanUrl) 
+                            : cleanUrl;
+
+                        // Create a promise for each fetch request so we can run them concurrently
+                        const fetchPromise = fetch(fetchUrl)
+                            .then(response => {
+                                if (!response.ok) throw new Error('Network response was not ok');
+                                return response.text();
+                            })
+                            .then(xmlString => {
+                                // Parse the returned XML
+                                const parser = new DOMParser();
+                                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+                                
+                                // The documentElement is the root node (e.g., <SectionFront>)
+                                const rootElement = xmlDoc.documentElement;
+                                const xId = rootElement.getAttribute('ID');
+                                
+                                if (xId) {
+                                    a.href = `${xId}.xml`;
+                                } else {
+                                    console.warn("Could not find ID attribute in XML for:", cleanUrl);
+                                }
+                            })
+                            .catch(error => {
+                                console.error("Failed to fetch or parse XML for:", cleanUrl, error);
+                                // Leave the href alone if it fails
+                            });
+
+                        linkPromises.push(fetchPromise);
+                    }
+                } catch (e) {
+                    // Invalid URL format, ignore and move on
+                }
+            });
+
+            // Wait for all the network requests to finish
+            await Promise.all(linkPromises);
+
+            // Output the final code and reset UI
+            outputHTML.value = tempDiv.innerHTML.trim();
+            statusText.innerText = "Done!";
+            cleanBtn.disabled = false;
+            copyBtn.style.display = 'inline-block';
+            
+            setTimeout(() => { statusText.innerText = ""; }, 3000);
+        }
+
+        async function copyRichText() {
+            const outputHTML = document.getElementById('outputHTML').value;
+            const copyBtn = document.getElementById('copyBtn');
+            
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = outputHTML;
+            const plainText = tempDiv.innerText;
+
+            try {
+                const clipboardItem = new ClipboardItem({
+                    "text/html": new Blob([outputHTML], { type: "text/html" }),
+                    "text/plain": new Blob([plainText], { type: "text/plain" })
+                });
+                await navigator.clipboard.write([clipboardItem]);
+                
+                const originalText = copyBtn.innerText;
+                copyBtn.innerText = "✅ Copied Successfully!";
+                setTimeout(() => { copyBtn.innerText = originalText; }, 2000);
+            } catch (err) {
+                console.error("Clipboard copy failed: ", err);
+                alert("Your browser blocked the automatic copy. Manually copy the source code below.");
+            }
+        }
+    </script>
+</body>
+</html>
