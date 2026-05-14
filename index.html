@@ -104,7 +104,7 @@
     <h1>CMS Format Cleaner & Link Converter</h1>
     
     <div class="instructions">
-        <p><strong>How to use:</strong> Paste your formatted text, click Clean. The app will strip bad formatting and automatically reach out to convert standard links into internal CMS xIDs.</p>
+        <p><strong>How to use:</strong> Paste your formatted text and click Clean. The app will strip bad formatting, convert internal <code>whitman.edu</code> links into CMS xIDs, and automatically format external links to open securely in a new tab with accessible page titles.</p>
     </div>
 
     <div class="container">
@@ -189,7 +189,8 @@
             const links = tempDiv.querySelectorAll('a');
             const linkPromises = [];
 
-            const WORKER_URL = 'https://whitman-formatter.webteam-4e1.workers.dev/'; 
+            // IMPORTANT: Replace this with your actual Cloudflare Worker URL!
+            const WORKER_URL = 'https://hello-world.yourname.workers.dev'; 
 
             links.forEach(a => {
                 try {
