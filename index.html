@@ -222,9 +222,10 @@
                                 const xId = rootElement.getAttribute('ID');
                                 
                                 if (xId) {
-                                    // Set relative link to prevent GitHub Pages domain from appending
+                                    // Set the standard link
                                     a.setAttribute('href', `${xId}.xml`);
-                                    a.removeAttribute('data-mce-href');
+                                    // Force TinyMCE to use the exact relative string, ignoring clipboard base URLs
+                                    a.setAttribute('data-mce-href', `${xId}.xml`);
                                 } else {
                                     console.warn("Could not find ID attribute in XML for:", cleanUrl);
                                 }
