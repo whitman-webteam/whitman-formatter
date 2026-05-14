@@ -40,6 +40,7 @@
             display: flex;
             gap: 1rem;
             align-items: center;
+            flex-wrap: wrap;
         }
         button {
             background: #0066cc;
@@ -62,6 +63,12 @@
             background: #ccc;
             cursor: not-allowed;
             transform: none;
+        }
+        .clear-btn {
+            background: #6c757d;
+        }
+        .clear-btn:hover {
+            background: #5a6268;
         }
         #copyBtn {
             background: #28a745;
@@ -148,6 +155,7 @@
 
         <div class="button-group">
             <button onclick="cleanText()" id="cleanBtn">Clean & Convert Links</button>
+            <button onclick="clearFields()" id="clearBtn" class="clear-btn">🗑️ Clear</button>
             <span id="statusText" class="status"></span>
             <button onclick="copyRichText()" id="copyBtn">📋 Copy for TinyMCE</button>
         </div>
@@ -159,6 +167,14 @@
     </div>
 
     <script>
+        function clearFields() {
+            document.getElementById('inputBox').innerHTML = '';
+            document.getElementById('outputHTML').value = '';
+            document.getElementById('statusText').innerText = '';
+            document.getElementById('copyBtn').style.display = 'none';
+            document.getElementById('cleanBtn').disabled = false;
+        }
+
         async function cleanText() {
             const inputBox = document.getElementById('inputBox');
             const outputHTML = document.getElementById('outputHTML');
@@ -222,7 +238,7 @@
             const links = tempDiv.querySelectorAll('a');
             const linkPromises = [];
 
-            // IMPORTANT: Replace this with your actual Cloudflare Worker URL!
+            // Cloudflare Worker Proxy URL
             const WORKER_URL = 'https://whitman-formatter.webteam-4e1.workers.dev'; 
 
             links.forEach(a => {
