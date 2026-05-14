@@ -185,28 +185,28 @@
                 if (p.textContent.trim() === '' && !p.querySelector('img')) p.parentNode.removeChild(p);
             });
 
-            // --- 2. Process Links and Fetch xIDs ---
+            // --- 2. Process Links (Internal xIDs & External Titles) ---
             const links = tempDiv.querySelectorAll('a');
             const linkPromises = [];
 
-            // IMPORTANT: Replace this with your actual Cloudflare Worker URL!
-            const WORKER_URL = 'https://whitman-formatter.webteam-4e1.workers.dev/'; 
+            const WORKER_URL = 'https://hello-world.yourname.workers.dev'; 
 
             links.forEach(a => {
                 try {
                     const url = new URL(a.href);
                     
+                    // Skip non-web links like mailto: and tel:
+                    if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+                    
                     if (url.hostname === 'whitman.edu' || url.hostname === 'www.whitman.edu') {
                         
+                        // --- INTERNAL LINKS ---
                         const cleanUrl = url.origin + url.pathname + '?tfrm=4';
-                        
-                        // Point directly to your new private proxy
                         const fetchUrl = WORKER_URL + '/?url=' + encodeURIComponent(cleanUrl);
 
                         const fetchPromise = fetch(fetchUrl)
                             .then(response => {
                                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                                // Use standard .text() as the Worker returns raw XML
                                 return response.text(); 
                             })
                             .then(xmlString => {
@@ -222,16 +222,52 @@
                                 const xId = rootElement.getAttribute('ID');
                                 
                                 if (xId) {
-                                    // Set the standard link
                                     a.setAttribute('href', `${xId}.xml`);
-                                    // Force TinyMCE to use the exact relative string, ignoring clipboard base URLs
-                                    a.setAttribute('data-mce-href', `${xId}.xml`);
+                                    a.setAttribute('data-mce-href', `${xId}.xml`); // Force TinyMCE to respect relative path
                                 } else {
                                     console.warn("Could not find ID attribute in XML for:", cleanUrl);
                                 }
                             })
                             .catch(error => {
                                 console.error("Failed to fetch or parse XML for:", cleanUrl, error);
+                            });
+
+                        linkPromises.push(fetchPromise);
+
+                    } else {
+
+                        // --- EXTERNAL LINKS ---
+                        a.setAttribute('target', '_blank');
+                        a.setAttribute('rel', 'noopener noreferrer');
+
+                        const fetchUrl = WORKER_URL + '/?url=' + encodeURIComponent(url.href);
+
+                        const fetchPromise = fetch(fetchUrl)
+                            .then(response => {
+                                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                                return response.text();
+                            })
+                            .then(htmlString => {
+                                const parser = new DOMParser();
+                                // Parse as standard HTML this time
+                                const htmlDoc = parser.parseFromString(htmlString, "text/html");
+                                
+                                const titleEl = htmlDoc.querySelector('title');
+                                
+                                // Fallback title just in case the page has no title tag
+                                let pageTitle = a.textContent.trim() || url.hostname;
+
+                                if (titleEl && titleEl.innerText.trim()) {
+                                    pageTitle = titleEl.innerText.trim();
+                                }
+                                
+                                a.setAttribute('title', `${pageTitle} (opens in new tab)`);
+                            })
+                            .catch(error => {
+                                console.warn("Could not fetch external page title for:", url.href, error);
+                                // Graceful fallback if the external site blocks our proxy (e.g. bot protection)
+                                const fallbackTitle = a.textContent.trim() || url.hostname;
+                                a.setAttribute('title', `${fallbackTitle} (opens in new tab)`);
                             });
 
                         linkPromises.push(fetchPromise);
