@@ -68,6 +68,7 @@
         .clear-btn {
             background: #6c757d;
             margin-left: auto; /* Pushes the button to the far right edge */
+            display: none; /* Hidden by default */
         }
         .clear-btn:hover {
             background: #5a6268;
@@ -153,7 +154,7 @@
     <div class="container">
         <div>
             <label><strong>1. Paste Google Docs / Word Text Here:</strong></label>
-            <div id="inputBox" class="editor-box" contenteditable="true" data-placeholder="Paste your text here..."></div>
+            <div id="inputBox" class="editor-box" contenteditable="true" data-placeholder="Paste your text here..." oninput="toggleClearButton()"></div>
         </div>
 
         <div class="button-group">
@@ -170,12 +171,26 @@
     </div>
 
     <script>
+        // Check if there's text to clear and show/hide the button
+        function toggleClearButton() {
+            const inputBox = document.getElementById('inputBox');
+            const clearBtn = document.getElementById('clearBtn');
+            
+            // If the box isn't empty, display the button
+            if (inputBox.innerText.trim() !== '') {
+                clearBtn.style.display = 'block';
+            } else {
+                clearBtn.style.display = 'none';
+            }
+        }
+
         function clearFields() {
             document.getElementById('inputBox').innerHTML = '';
             document.getElementById('outputHTML').value = '';
             document.getElementById('statusText').innerText = '';
             document.getElementById('copyBtn').style.display = 'none';
             document.getElementById('cleanBtn').disabled = false;
+            document.getElementById('clearBtn').style.display = 'none'; // Hide button after clearing
         }
 
         async function cleanText() {
