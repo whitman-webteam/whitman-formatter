@@ -144,8 +144,8 @@
                 <li><strong>External Title Grabbing:</strong> The tool automatically reaches out to external websites to read their HTML and grab their actual <code>&lt;title&gt;</code> tags to make your link titles descriptive.</li>
                 <li><strong>External Link Attributes:</strong> All external links automatically receive <code>target="_blank"</code> (to open in a new tab) and <code>rel="noopener noreferrer"</code> (for security), with a helpful "(opens in new tab)" warning appended to the title.</li>
                 <li><strong>Internal Link Accessibility:</strong> Titles are intentionally left off internal links. This follows modern web accessibility best practices by reducing auditory "noise" for screen reader users and avoiding tooltips that mobile/keyboard users cannot trigger.</li>
-                <li><strong>Private Proxy Server:</strong> To bypass CORS restrictions and corporate firewalls securely, this tool routes all external requests through a dedicated Cloudflare Worker proxy, ensuring reliable connection to Whitman's XML feeds and external sites.</li>
-                <li><strong>Unpublished Internal Links:</strong> The internal link converter relies on scraping the live <code>whitman.edu</code> website's XML. If a page has not yet been published to the live server, the tool will not be able to find its CMS xID, and the link will simply remain as the original URL.</li>
+                <li><strong>Private Proxy Server:</strong> To bypass CORS restrictions and corporate firewalls securely, this tool routes all external requests through a dedicated Cloudflare Worker proxy.</li>
+                <li><strong>Unpublished Internal Links:</strong> The internal link converter relies on scraping the live <code>whitman.edu</code> website. If a page has not yet been published to the live server, the tool will not be able to find its CMS xID, and the link will simply remain as the original URL.</li>
             </ul>
         </details>
     </div>
