@@ -10,6 +10,12 @@
         .editor-box { border: 2px solid #ccc; border-radius: 6px; padding: 1rem; min-height: 150px; overflow-y: auto; background: #fff; transition: border-color 0.2s; }
         .editor-box:focus { outline: none; border-color: #0066cc; }
         .editor-box:empty:before { content: attr(data-placeholder); color: #888; }
+        
+        .toggle-container { margin-top: -0.5rem; }
+        .toggle-container label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; }
+        .toggle-container input[type="checkbox"] { width: 1.1rem; height: 1.1rem; cursor: pointer; }
+        .toggle-help { font-size: 0.85rem; color: #666; margin-left: 1.6rem; margin-top: 0.2rem; }
+
         .button-group { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; width: 100%; }
         button { background: #0066cc; color: #fff; border: none; padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s, transform 0.1s; }
         button:hover { background: #005bb5; }
@@ -25,7 +31,6 @@
         
         .instructions { background: #f0f7ff; padding: 1rem; border-left: 4px solid #0066cc; border-radius: 4px; }
         
-        /* Ultra-compact closed state, expanding gracefully only when opened */
         details { margin-top: 0.5rem; font-size: 0.85rem; color: #555; }
         summary { cursor: pointer; color: #0066cc; font-weight: bold; user-select: none; width: fit-content; }
         summary:hover { text-decoration: underline; }
@@ -71,6 +76,7 @@
             <summary>🛠️ Under the Hood (Technical Details)</summary>
             <ul>
                 <li><strong>DOM Sanitization:</strong> Strips Google Docs/Word schema tracking (e.g., <code>docs-internal-guid-</code>), drops all inline styles, classes, and empty formatting nodes, mapping structural weights to valid semantic <code>&lt;strong&gt;</code> and <code>&lt;em&gt;</code> tags.</li>
+                <li><strong>Inline Unwrapping:</strong> Optionally strips all block-level wrappers (like paragraphs and lists) to safely allow pasting mid-sentence into existing lists or paragraphs without forcing a hard line break in TinyMCE.</li>
                 <li><strong>Internal Link Remapping:</strong> Resolves standard <code>whitman.edu</code> hyperlinks by passing them to a Cloudflare Worker that dynamically parses downstream CMS XML headers, re-writing routes locally to the system's preferred <code>XXXXX.xml</code> structure.</li>
                 <li><strong>Social Wall Bypassing:</strong> Intercepts Instagram and LinkedIn profiles, pages, jobs, and reels right before network execution. It uses client-side text parsing to instantaneously assemble ADA-compliant titles (bypassing auth-walls and HTTP 429/999 errors entirely).</li>
                 <li><strong>YouTube Meta Grabbing:</strong> Queries YouTube's official structured <code>oembed</code> JSON schema endpoint via proxy to automatically fetch accurate media titles.</li>
@@ -82,6 +88,14 @@
         <div>
             <label><strong>1. Paste Google Docs / Word Text Here:</strong></label>
             <div id="inputBox" class="editor-box" contenteditable="true" data-placeholder="Paste your text here..." oninput="toggleClearButton()"></div>
+        </div>
+
+        <div class="toggle-container">
+            <label>
+                <input type="checkbox" id="wrapParagraphsToggle" checked>
+                <strong>Include paragraph formatting</strong>
+            </label>
+            <div class="toggle-help">Turn off if you're pasting into an existing paragraph or list.</div>
         </div>
 
         <div class="button-group">
@@ -174,6 +188,24 @@
             tempDiv.querySelectorAll('*').forEach(el => { el.removeAttribute('style'); el.removeAttribute('dir'); el.removeAttribute('class'); });
             tempDiv.querySelectorAll('br').forEach(br => { if (br.nextElementSibling && br.nextElementSibling.tagName === 'P') br.parentNode.removeChild(br); });
             tempDiv.querySelectorAll('p, div').forEach(p => { if (p.textContent.trim() === '' && !p.querySelector('img')) p.parentNode.removeChild(p); });
+
+            // --- 1.5 Handle Paragraph Formatting Toggle ---
+            const wrapParagraphs = document.getElementById('wrapParagraphsToggle').checked;
+            if (!wrapParagraphs) {
+                const blockElements = tempDiv.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, ul, ol, li, blockquote');
+                blockElements.forEach(el => {
+                    while (el.firstChild) {
+                        el.parentNode.insertBefore(el.firstChild, el);
+                    }
+                    // Insert a space where the block element was to prevent words from merging
+                    const space = document.createTextNode(' ');
+                    el.parentNode.insertBefore(space, el);
+                    el.parentNode.removeChild(el);
+                });
+                
+                // Clean up any double spaces generated by unwrapping adjacent blocks
+                tempDiv.innerHTML = tempDiv.innerHTML.replace(/&nbsp;/g, ' ').replace(/\s{2,}/g, ' ').trim();
+            }
 
             // --- 2. Process Links ---
             const links = tempDiv.querySelectorAll('a');
